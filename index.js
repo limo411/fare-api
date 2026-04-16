@@ -11,7 +11,13 @@ app.post("/calculate-fare", async (req, res) => {
     suv: 2.20
   };
 
+  const minFares = {
+    sedan: 10,
+    suv: 15
+  };
+
   const rate = rates[vehicle] || rates.sedan;
+  const minFare = minFares[vehicle] || minFares.sedan;
 
   try {
     const response = await fetch(
@@ -42,10 +48,16 @@ app.post("/calculate-fare", async (req, res) => {
 
     const meters = data.routes[0].distanceMeters;
 
-    // ✅ convert to KM (NOT meters)
+    // convert meters → km
     const km = meters / 1000;
 
-    const fare = km * rate;
+    // base fare calculation
+    let fare = km * rate;
+
+    // apply minimum fare rule
+    if (fare < minFare) {
+      fare = minFare;
+    }
 
     res.json({
       vehicle: vehicle || "sedan",
