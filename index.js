@@ -3,7 +3,7 @@ const express = require("express");
 const app = express();
 app.use(express.json());
 
-// CORS — only allow requests from limo4all.ca
+// CORS
 app.use(function(req, res, next) {
   var allowed = ['https://limo4all.ca', 'https://www.limo4all.ca'];
   var origin  = req.headers.origin;
@@ -17,20 +17,16 @@ app.use(function(req, res, next) {
 });
 
 app.post("/calculate-fare", async (req, res) => {
-  const { pickup, dropoff, vehicle } = req.body;
+  const { pickup, dropoff, vehicle, pickupPlaceId, dropoffPlaceId } = req.body;
 
-  const rates = {
-    sedan: 2.00,
-    suv:   2.20
-  };
+  const rates    = { sedan: 2.00, suv: 2.20 };
+  const minFares = { sedan: 10,   suv: 15   };
+  const rate     = rates[vehicle]    || rates.sedan;
+  const minFare  = minFares[vehicle] || minFares.sedan;
 
-  const minFares = {
-    sedan: 10,
-    suv:   15
-  };
-
-  const rate    = rates[vehicle]    || rates.sedan;
-  const minFare = minFares[vehicle] || minFares.sedan;
+  // Use placeId when available — always resolves correctly in Routes API
+  const origin      = pickupPlaceId  ? { placeId: pickupPlaceId }  : { address: pickup };
+  const destination = dropoffPlaceId ? { placeId: dropoffPlaceId } : { address: dropoff };
 
   try {
     const response = await fetch(
@@ -38,15 +34,11 @@ app.post("/calculate-fare", async (req, res) => {
       {
         method: "POST",
         headers: {
-          "Content-Type":    "application/json",
-          "X-Goog-Api-Key":  process.env.GOOGLE_API_KEY,
+          "Content-Type":     "application/json",
+          "X-Goog-Api-Key":   process.env.GOOGLE_API_KEY,
           "X-Goog-FieldMask": "routes.distanceMeters"
         },
-        body: JSON.stringify({
-          origin:      { address: pickup },
-          destination: { address: dropoff },
-          travelMode:  "DRIVE"
-        })
+        body: JSON.stringify({ origin, destination, travelMode: "DRIVE" })
       }
     );
 
@@ -59,7 +51,7 @@ app.post("/calculate-fare", async (req, res) => {
     const km   = data.routes[0].distanceMeters / 1000;
     const fare = Math.max(km * rate, minFare);
 
-    res.json({ vehicle: vehicle || "sedan", distance_km: km, fare: fare });
+    res.json({ vehicle: vehicle || "sedan", distance_km: km, fare });
 
   } catch (err) {
     res.status(500).json({ error: "Failed to calculate fare", message: err.message });
