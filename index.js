@@ -23,10 +23,9 @@ function isPearson(address) {
 }
 
 // ── Pearson zone flat rate (sedan) — calibrated to official Pearson tariff ─
-// Breakpoints verified against tariff destinations:
-//   Georgetown (~40km) = $95 | Aurora (~53km) = $114 | Newmarket (~58km) = $124
-//   Hamilton DT (~65km) = $140 | Guelph (~87km) = $162 | Kitchener (~105km) = $194
-//   Trips outside zone: $2.01/km per official tariff
+// Verified against: Georgetown ~40km=$93, Aurora ~53km=$115, Newmarket ~58km=$124,
+// Hamilton DT ~65km=$140, Guelph ~87km=$164, Kitchener ~105km=$194
+// Trips outside zone: $2.01/km (per official Pearson tariff)
 function pearsonSedanRate(km) {
   if (km <= 10)  return 48;
   if (km <= 15)  return 58;
@@ -48,10 +47,10 @@ function pearsonSedanRate(km) {
   return Math.round(km * 2.01);
 }
 
-// ── Standard (non-airport) rates ───────────────────────────────────────────
-const STANDARD = {
-  sedan: { base: 40, perKm: 1.30, min: 40 },
-  suv:   { base: 45, perKm: 1.50, min: 45 },
+// ── Standard rates (non-Pearson): $2.05/km with minimum base fare ──────────
+const STANDARD_RATE = {
+  sedan: { perKm: 2.05, min: 45 },
+  suv:   { perKm: 2.36, min: 55 },  // SUV ~15% premium over sedan
 };
 
 // ── Main route ─────────────────────────────────────────────────────────────
@@ -98,11 +97,13 @@ app.post('/calculate-fare', async (req, res) => {
     let   fare;
 
     if (pearsonTrip) {
+      // Zone-based flat rate from Pearson tariff (sedan), +20% for SUV
       const sedanRate = pearsonSedanRate(km);
       fare = veh === 'suv' ? Math.round(sedanRate * 1.20) : sedanRate;
     } else {
-      const { base, perKm, min } = STANDARD[veh];
-      fare = Math.max((km * perKm) + base, min);
+      // $2.05/km (sedan) or $2.36/km (SUV), with minimum base fare
+      const { perKm, min } = STANDARD_RATE[veh];
+      fare = Math.max(km * perKm, min);
       fare = Math.round(fare * 100) / 100;
     }
 
