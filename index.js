@@ -22,35 +22,30 @@ function isPearson(address) {
   return PEARSON_KEYWORDS.some(kw => lower.includes(kw));
 }
 
-// ── Pearson zone flat rate (sedan) — calibrated to official Pearson tariff ─
-// Verified against: Georgetown ~40km=$93, Aurora ~53km=$115, Newmarket ~58km=$124,
-// Hamilton DT ~65km=$140, Guelph ~87km=$164, Kitchener ~105km=$194
-// Trips outside zone: $2.01/km (per official Pearson tariff)
+// ── Pearson zone flat rate (sedan) ─────────────────────────────────────────
+// Calibrated $7 below competitor at each known data point:
+//   Downtown (~27km):  $70 sedan / $85 SUV   (competitor $77/$92)
+//   Scarborough (~38km): $83 sedan / $98 SUV  (competitor $90/$105)
+//   Markham (~48km):   $86 sedan / $101 SUV  (competitor $93/$108)
+//   Hamilton (~68km):  $133 sedan / $148 SUV (competitor $140/$155)
+//   Oshawa (~92km):    $133 sedan / $148 SUV (competitor $140/$155)
+//   Bowmanville (~122km): $174 sedan / $189 SUV (competitor $181/$196)
+// SUV = sedan + $15 flat (mirrors competitor's pricing structure)
 function pearsonSedanRate(km) {
-  if (km <= 10)  return 48;
-  if (km <= 15)  return 58;
-  if (km <= 20)  return 65;
-  if (km <= 25)  return 72;
-  if (km <= 30)  return 78;
-  if (km <= 35)  return 85;
-  if (km <= 40)  return 93;
-  if (km <= 45)  return 100;
-  if (km <= 50)  return 107;
-  if (km <= 55)  return 115;
-  if (km <= 60)  return 124;
-  if (km <= 70)  return 140;
-  if (km <= 80)  return 153;
-  if (km <= 90)  return 164;
-  if (km <= 100) return 178;
-  if (km <= 110) return 194;
-  if (km <= 120) return 212;
-  return Math.round(km * 2.01);
+  if (km <= 12)  return 42;   // very short (near-airport neighbourhoods)
+  if (km <= 20)  return 52;
+  if (km <= 30)  return 70;   // Downtown Toronto zone
+  if (km <= 42)  return 83;   // Scarborough / Etobicoke zone
+  if (km <= 55)  return 86;   // Markham / Richmond Hill / North York zone
+  if (km <= 100) return 133;  // Hamilton / Oakville / Oshawa / Aurora zone (broad flat zone)
+  if (km <= 130) return 174;  // Bowmanville / Barrie / Guelph zone
+  return Math.round(km * 1.50); // beyond zone — per-km
 }
 
-// ── Standard rates (non-Pearson): $2.05/km with minimum base fare ──────────
+// ── Standard rates (non-Pearson) ──────────────────────────────────────────
 const STANDARD_RATE = {
-  sedan: { perKm: 2.05, min: 45 },
-  suv:   { perKm: 2.36, min: 55 },  // SUV ~15% premium over sedan
+  sedan: { perKm: 1.40, min: 45 },
+  suv:   { perKm: 1.65, min: 55 },
 };
 
 // ── Main route ─────────────────────────────────────────────────────────────
@@ -97,11 +92,11 @@ app.post('/calculate-fare', async (req, res) => {
     let   fare;
 
     if (pearsonTrip) {
-      // Zone-based flat rate from Pearson tariff (sedan), +20% for SUV
+      // Zone flat rate — SUV is sedan + $15 flat (same structure as competitor)
       const sedanRate = pearsonSedanRate(km);
-      fare = veh === 'suv' ? Math.round(sedanRate * 1.20) : sedanRate;
+      fare = veh === 'suv' ? sedanRate + 15 : sedanRate;
     } else {
-      // $2.05/km (sedan) or $2.36/km (SUV), with minimum base fare
+      // Non-airport: pure per-km, minimum applies only on very short trips
       const { perKm, min } = STANDARD_RATE[veh];
       fare = Math.max(km * perKm, min);
       fare = Math.round(fare * 100) / 100;
